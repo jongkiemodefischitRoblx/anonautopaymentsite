@@ -5,60 +5,62 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ANONAUTOPAYMENT</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   body {
-    font-family: 'Arial', sans-serif;
-    background: #0d0d0d;
-    color: #f0f0f0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
+    font-family: 'Press Start 2P', cursive;
+    margin:0; padding:0;
+    background: url('home1.png') no-repeat center center fixed;
+    background-size: cover;
+    color: #fff;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    transition: background 0.5s ease;
   }
   #container {
-    background: #1a1a1a;
-    padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0 0 30px #ff0080;
-    width: 350px;
-    text-align: center;
+    background: rgba(0,0,0,0.7);
+    padding:40px;
+    border-radius:20px;
+    box-shadow:0 0 30px #ff0080;
+    width:350px;
+    text-align:center;
   }
   input {
     width: 80%;
-    padding: 12px;
-    margin: 20px 0;
-    border-radius: 10px;
-    border: 1px solid #ff0080;
-    background: #0d0d0d;
-    color: #fff;
-    font-size: 18px;
-    text-align: center;
+    padding:12px;
+    margin:20px 0;
+    border-radius:10px;
+    border:1px solid #ff0080;
+    background:#0d0d0d;
+    color:#fff;
+    font-size:14px;
+    text-align:center;
   }
   button {
-    padding: 12px 30px;
-    font-size: 18px;
-    background: #ff0080;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    color: #fff;
-    transition: 0.3s;
+    padding:12px 30px;
+    font-size:14px;
+    background:#ff0080;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    color:#fff;
+    transition:0.3s;
   }
-  button:hover { background: #e60073; }
-  #qris-container img {
-    width: 200px;
-    height: 200px;
-    margin: 20px 0;
-    border: 4px solid #ff0080;
-    border-radius: 10px;
+  button:hover { background:#e60073; }
+  #qris-container img{
+    width:200px; height:200px;
+    margin:20px 0;
+    border:4px solid #ff0080;
+    border-radius:10px;
   }
-  #details {
-    text-align: left;
-    font-size: 14px;
-    background: #0f0f0f;
-    padding: 15px;
-    border-radius: 10px;
-    word-wrap: break-word;
+  #details{
+    text-align:left;
+    font-size:12px;
+    background:#0f0f0f;
+    padding:15px;
+    border-radius:10px;
+    word-wrap:break-word;
   }
 </style>
 </head>
@@ -70,31 +72,35 @@
   <button onclick="generateQR()">BAYAR</button>
   <div id="qris-container"></div>
   <div id="details" data-order-id=""></div>
+  <button onclick="switchHome()" style="margin-top:15px;">Switch Home</button>
 </div>
 
 <script>
 const wa_number = "60175953518";
+const slug = "payment-anon";
+const api_key = "0qWr1eUUu5KVc53cWl8c3Lj1CbK92G38";
 
-// SSE untuk realtime
+let currentHome = 1;
+
+// SSE realtime
 const evtSource = new EventSource('/events');
-evtSource.onmessage = function(e) {
+evtSource.onmessage = function(e){
   const data = JSON.parse(e.data);
   const currentOrder = document.getElementById('details').dataset.orderId;
-  if (currentOrder !== data.order_id) return;
-
+  if(currentOrder !== data.order_id) return;
   updateDetails(data);
 }
 
-// fallback polling (cek tiap 10 detik)
-async function pollStatus(order_id, amount) {
-  const interval = setInterval(async () => {
-    try {
+// fallback polling
+async function pollStatus(order_id, amount){
+  const interval = setInterval(async ()=>{
+    try{
       const res = await fetch(`/check?order_id=${order_id}&amount=${amount}`);
       const data = await res.json();
       updateDetails(data);
-      if (data.status === 'success') clearInterval(interval);
-    } catch(err){ console.error(err); }
-  }, 10000);
+      if(data.status==='success') clearInterval(interval);
+    }catch(err){ console.error(err); }
+  },10000);
 }
 
 function updateDetails(data){
@@ -102,31 +108,38 @@ function updateDetails(data){
     <strong>Order ID:</strong> ${data.order_id}<br>
     <strong>Amount:</strong> ${data.amount}<br>
     <strong>Status:</strong> ${data.status}<br>
-    <strong>Payment Method:</strong> ${data.payment_method || '-'}
+    <strong>Payment Method:</strong> ${data.payment_method||'-'}
   `;
-  if(data.status === 'success'){
+  if(data.status==='success'){
     const detail_transaksi = encodeURIComponent(JSON.stringify(data));
     window.location.href = `https://wa.me/${wa_number}?text=${detail_transaksi}`;
   }
 }
 
-function generateQR() {
+async function generateQR(){
   const amount = document.getElementById('nominal').value;
-  if(!amount || amount <=0){ alert('Masukan nominal valid!'); return; }
-
-  const order_id = "INV" + Date.now();
+  if(!amount || amount<=0){ alert('Masukan nominal valid!'); return; }
+  const order_id = "INV"+Date.now();
   document.getElementById('details').dataset.orderId = order_id;
 
-  const qris_url = `https://app.pakasir.com/pay/payment-anon/${amount}?order_id=${order_id}&qris_only=1`;
+  // create transaction via API
+  const res = await fetch('https://app.pakasir.com/api/transactioncreate/qris',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({project:slug,amount:parseInt(amount),order_id,api_key})
+  });
+  const data = await res.json();
+  if(!data.success){ alert('Gagal generate transaksi'); return; }
+
+  const qris_url = `https://app.pakasir.com/pay/${slug}/${amount}?order_id=${order_id}&qris_only=1`;
   document.getElementById('qris-container').innerHTML = `<img src="${qris_url}" alt="QRIS">`;
+  document.getElementById('details').innerHTML = `<strong>Order ID:</strong> ${order_id}<br><strong>Amount:</strong>${amount}<br><strong>Status:</strong> pending`;
+  pollStatus(order_id,amount);
+}
 
-  document.getElementById('details').innerHTML = `
-    <strong>Order ID:</strong> ${order_id}<br>
-    <strong>Amount:</strong> ${amount}<br>
-    <strong>Status:</strong> pending
-  `;
-
-  pollStatus(order_id, amount); // start fallback polling
+function switchHome(){
+  currentHome = currentHome===1?2:1;
+  document.body.style.backgroundImage = currentHome===1?'url("home1.png")':'url("home2.png")';
 }
 </script>
 </body>
